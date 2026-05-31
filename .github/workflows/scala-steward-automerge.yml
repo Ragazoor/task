@@ -1,0 +1,62 @@
+name: Scala Steward auto-merge
+
+# Auto-merge the grouped patch/minor dependency PR opened by scala-steward once CI
+# passes. scala-steward opens PRs from a fork, so a `pull_request`-triggered job
+# would only get a read-only token. `workflow_run` runs in this repo's context with
+# a write token after CI finishes, which is what lets us merge.
+on:
+  workflow_run:
+    workflows: ["CI"]
+    types: [completed]
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  auto-merge:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 10
+    # Only consider successful CI runs that came from a pull request.
+    if: >
+      github.event.workflow_run.event == 'pull_request' &&
+      github.event.workflow_run.conclusion == 'success'
+    steps:
+      - name: Merge grouped patch/minor PR
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPO: ${{ github.repository }}
+          HEAD_SHA: ${{ github.event.workflow_run.head_sha }}
+          # Must match `pullRequests.grouping[].title` in .scala-steward.conf.
+          GROUP_TITLE: "chore(deps): update patch & minor dependencies"
+        run: |
+          set -euo pipefail
+
+          # workflow_run.pull_requests is empty for fork PRs, so resolve the PR
+          # from the CI run's head commit instead.
+          pr_number=$(gh api "repos/$REPO/commits/$HEAD_SHA/pulls" --jq '.[0].number // empty')
+          if [ -z "$pr_number" ]; then
+            echo "No PR found for commit $HEAD_SHA; nothing to do."
+            exit 0
+          fi
+
+          # Defense in depth: only the scala-steward grouped patch/minor PR may
+          # auto-merge. Anything else (major/individual PRs, other authors) is left
+          # for manual review.
+          IFS=$'\t' read -r author title < <(
+            gh pr view "$pr_number" --repo "$REPO" \
+              --json author,title \
+              --jq '[.author.login, .title] | @tsv'
+          )
+
+          if [ "$author" != "scala-steward" ]; then
+            echo "PR #$pr_number author is '$author', not scala-steward; skipping."
+            exit 0
+          fi
+          if [ "$title" != "$GROUP_TITLE" ]; then
+            echo "PR #$pr_number title is '$title', not the grouped patch/minor PR; leaving for manual review."
+            exit 0
+          fi
+
+          echo "Auto-merging patch/minor PR #$pr_number."
+          gh pr merge "$pr_number" --repo "$REPO" --squash
