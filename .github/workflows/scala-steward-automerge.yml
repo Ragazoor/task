@@ -1,9 +1,8 @@
 name: Scala Steward auto-merge
 
-# Auto-merge the grouped patch/minor dependency PR opened by scala-steward once CI
-# passes. scala-steward opens PRs from a fork, so a `pull_request`-triggered job
-# would only get a read-only token. `workflow_run` runs in this repo's context with
-# a write token after CI finishes, which is what lets us merge.
+# Auto-merge the grouped patch/minor PR from scala-steward once CI passes.
+# scala-steward opens PRs from a fork, where a `pull_request` job only gets a
+# read-only token; `workflow_run` runs in this repo's context with a write token.
 on:
   workflow_run:
     workflows: ["CI"]
@@ -17,7 +16,6 @@ jobs:
   auto-merge:
     runs-on: ubuntu-22.04
     timeout-minutes: 10
-    # Only consider successful CI runs that came from a pull request.
     if: >
       github.event.workflow_run.event == 'pull_request' &&
       github.event.workflow_run.conclusion == 'success'
