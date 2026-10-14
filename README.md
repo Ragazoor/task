@@ -25,7 +25,7 @@ or [Monix BIO](https://bio.monix.io/docs/introduction).
 Setup via **build.sbt**:
 
 ```sbt
-libraryDependencies += "io.github.ragazoor" %% "task" % "0.1.18" // x-release-please-version
+libraryDependencies += "io.github.ragazoor" %% "task" % "0.2.0" // x-release-please-version
 ```
 
 ### Examples
